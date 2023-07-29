@@ -1,3 +1,5 @@
+<div align="center"><img src="https://github.com/hollerith/pingo/assets/659626/772ebd26-6a22-4cc9-add0-d8a97b322e12" width="50%"></div>
+
 # Pingo
 
 Pingo is a simple command line tool that attempts to guess the operating system of a network host based on TTL (Time To Live) values in ICMP echo replies.
