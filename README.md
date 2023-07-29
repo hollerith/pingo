@@ -28,6 +28,11 @@ go build pingo.go
 
 Optionally, copy pingo to somewhere like `~/.local/bin`
 
+# Caveats
+
+Different operating systems set different default TTL values for ICMP packets, which can sometimes be used as a heuristic to guess the operating system of a remote host. 
+However, this is not a reliable method because the TTL value can be manually overridden, and network conditions can cause the TTL to decrease more rapidly.
+
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
