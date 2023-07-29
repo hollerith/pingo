@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -10,10 +11,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"bufio"
 
 	"github.com/spf13/pflag"
-	_ "embed"
 )
+
+//go:embed osinfo.json
+var osinfoJSON []byte
 
 type OSInfo struct {
 	DeviceOS string `json:"Device / OS"`
@@ -50,42 +54,26 @@ func getTTLFromPing(target string) (int, string, error) {
 	return ttl, string(out), err
 }
 
-//go:embed "osinfo.json"
-var osInfoJSON string
-
-func main() {
-	tries := pflag.Int("retries", 1, "Number of tries")
-	tolerance := pflag.Int("tolerance", 0, "TTL tolerance")
-	verbose := pflag.Bool("verbose", false, "Print verbose output")
-	pflag.Parse()
-
-	args := pflag.Args()
-	if len(args) < 1 {
-		fmt.Println("Please specify a target")
-		os.Exit(1)
-	}
-
-	target := args[0]
-
+func processTarget(target string, tries, tolerance int, verbose bool) {
 	// Load OSInfo data
 	var osInfo []OSInfo
-	err := json.Unmarshal([]byte(osInfoJSON), &osInfo)
+	err := json.Unmarshal(osinfoJSON, &osInfo)
 	if err != nil {
 		fmt.Println("Error parsing osinfo.json:", err)
 		os.Exit(1)
 	}
 
 	// Get average TTL value and guess OS for each try
-	guessedTTLs := make([]int, *tries)
-	for i := 0; i < *tries; i++ {
+	guessedTTLs := make([]int, tries)
+	for i := 0; i < tries; i++ {
 		// Get number of hops using traceroute
-		out, err := exec.Command("traceroute", "-n", "-m", "64", target).Output()
+		out, err := exec.Command("traceroute", "-w", "5", "-n", "-m", "64", target).Output()
 		if err != nil {
 			fmt.Println("Error running traceroute:", err)
 			os.Exit(1)
 		}
 
-		if *verbose {
+		if verbose {
 			fmt.Println(string(out)) // print traceroute output
 		}
 
@@ -98,7 +86,7 @@ func main() {
 			return
 		}
 
-		if *verbose {
+		if verbose {
 			fmt.Println(pingOutput) // print ping output
 		}
 
@@ -126,7 +114,7 @@ func main() {
 	for _, info := range osInfo {
 		ttl, _ := strconv.Atoi(info.TTL)
 		difference := abs(ttl - avgTTL)
-		if difference <= *tolerance {
+		if difference <= tolerance {
 			guesses = append(guesses, Guess{info, difference})
 		}
 	}
@@ -137,9 +125,33 @@ func main() {
 		fmt.Println(guess.DeviceOS, guess.Version, "diff:", guess.Difference)
 	}
 
-    if *verbose {
-	    fmt.Println("\nAverage TTL:", avgTTL, "Standard Deviation:", stdDev)
-    }
+	if verbose {
+		fmt.Println("\nAverage TTL:", avgTTL, "Standard Deviation:", stdDev)
+	}
+}
+
+func main() {
+	tries := pflag.Int("retries", 1, "Number of tries")
+	tolerance := pflag.Int("tolerance", 0, "TTL tolerance")
+	verbose := pflag.Bool("verbose", false, "Print verbose output")
+	pflag.Parse()
+
+	targets := pflag.Args()
+	if len(targets) == 0 {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			targets = append(targets, scanner.Text())
+		}
+	}
+
+	if len(targets) == 0 {
+		fmt.Println("Please specify a target")
+		os.Exit(1)
+	}
+
+	for _, target := range targets {
+		processTarget(target, *tries, *tolerance, *verbose)
+	}
 }
 
 // abs returns the absolute value of an integer
