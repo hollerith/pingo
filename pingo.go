@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"os/exec"
@@ -13,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
+	_ "embed"
 )
 
 type OSInfo struct {
@@ -50,6 +50,9 @@ func getTTLFromPing(target string) (int, string, error) {
 	return ttl, string(out), err
 }
 
+//go:embed "osinfo.json"
+var osInfoJSON string
+
 func main() {
 	tries := pflag.Int("retries", 1, "Number of tries")
 	tolerance := pflag.Int("tolerance", 0, "TTL tolerance")
@@ -65,14 +68,8 @@ func main() {
 	target := args[0]
 
 	// Load OSInfo data
-	data, err := ioutil.ReadFile("osinfo.json")
-	if err != nil {
-		fmt.Println("Error reading osinfo.json:", err)
-		os.Exit(1)
-	}
-
 	var osInfo []OSInfo
-	err = json.Unmarshal(data, &osInfo)
+	err := json.Unmarshal([]byte(osInfoJSON), &osInfo)
 	if err != nil {
 		fmt.Println("Error parsing osinfo.json:", err)
 		os.Exit(1)
