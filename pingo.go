@@ -33,27 +33,27 @@ func (a ByDifference) Len() int           { return len(a) }
 func (a ByDifference) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByDifference) Less(i, j int) bool { return a[i].Difference < a[j].Difference }
 
-func getTTLFromPing(target string) (int, error) {
+func getTTLFromPing(target string) (int, string, error) {
 	out, err := exec.Command("ping", "-c", "1", target).Output()
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
-
-	fmt.Println(string(out)) // print ping output
 
 	// regex to match ttl from ping output
 	ttlRegex := regexp.MustCompile(`ttl=(\d+)`)
 	matches := ttlRegex.FindStringSubmatch(string(out))
 	if len(matches) != 2 {
-		return 0, fmt.Errorf("could not find TTL in ping output")
+		return 0, "", fmt.Errorf("could not find TTL in ping output")
 	}
 
-	return strconv.Atoi(matches[1])
+	ttl, err := strconv.Atoi(matches[1])
+	return ttl, string(out), err
 }
 
 func main() {
 	tries := pflag.Int("retries", 1, "Number of tries")
 	tolerance := pflag.Int("tolerance", 0, "TTL tolerance")
+	verbose := pflag.Bool("verbose", false, "Print verbose output")
 	pflag.Parse()
 
 	args := pflag.Args()
@@ -88,15 +88,21 @@ func main() {
 			os.Exit(1)
 		}
 
-		fmt.Println(string(out)) // print traceroute output
+		if *verbose {
+			fmt.Println(string(out)) // print traceroute output
+		}
 
 		hops := len(strings.Split(string(out), "\n")) - 1
 
 		// Get TTL value from pinging the target
-		ttl, err := getTTLFromPing(target)
+		ttl, pingOutput, err := getTTLFromPing(target)
 		if err != nil {
 			fmt.Printf("ERROR: %s\n", err.Error())
 			return
+		}
+
+		if *verbose {
+			fmt.Println(pingOutput) // print ping output
 		}
 
 		// Guess OS based on TTL value
@@ -131,11 +137,12 @@ func main() {
 	// Sort by difference and print
 	sort.Sort(ByDifference(guesses))
 	for _, guess := range guesses {
-		fmt.Println("Guessed OS:", guess.DeviceOS, guess.Version, "Difference:", guess.Difference)
+		fmt.Println(guess.DeviceOS, guess.Version, "diff:", guess.Difference)
 	}
 
-	fmt.Println("Average TTL:", avgTTL)
-	fmt.Println("Standard Deviation:", stdDev)
+    if *verbose {
+	    fmt.Println("\nAverage TTL:", avgTTL, "Standard Deviation:", stdDev)
+    }
 }
 
 // abs returns the absolute value of an integer
